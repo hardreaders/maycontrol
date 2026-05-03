@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLEARMAY</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- PASSWORD SCREEN -->
+<div id="passwordScreen">
+  <div id="passwordBox">
+    <div id="passwordTitle">CLEARMAY</div>
+    <div id="passwordSub">04.05 → 07.06.2026 · 35 days</div>
+    <div style="position:relative;width:100%;">
+      <input type="password" id="passwordInput" placeholder="ENTER PASSWORD" autocomplete="off" style="width:100%;text-align:center;" oninput="document.getElementById('togglePassword').style.opacity=this.value?'0.6':'0'" />
+      <span id="togglePassword" onclick="(function(){var i=document.getElementById('passwordInput');i.type=i.type==='password'?'text':'password';})()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:#e8e8e8;font-size:16px;opacity:0;user-select:none;transition:opacity 0.12s linear;" onmouseenter="if(document.getElementById('passwordInput').value)this.style.opacity='1'" onmouseleave="if(document.getElementById('passwordInput').value)this.style.opacity='0.6'">👁</span>
+    </div>
+    <button id="passwordBtn">ENTER</button>
+    <div id="passwordError"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none;">
+  <div class="container">
+    <header>
+      <h1 class="brand">CLEAR<br>MAY.</h1>
+      <div class="brand-meta">
+        <div>04.05 → 07.06.2026</div>
+        <div class="day-counter" id="dayCounter">loading…</div>
+        <div>35 days. no compromises.</div>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="today">Check-in</button>
+      <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="achievements">Achievements</button>
+    </nav>
+
+    <!-- DASHBOARD TAB -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="hero">
+        <div class="hero-block">
+          <div class="hl">⚡ Level</div>
+          <div class="hv"><span id="level">1</span><span class="small"> LVL</span></div>
+          <div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
+          <div class="xp-meta">
+            <span id="xpCurrent">0 / 100 XP</span>
+            <span id="xpNext">to LVL 2</span>
+          </div>
+        </div>
+        <div class="hero-block">
+          <div class="hl">🔥 Streak</div>
+          <div class="streak-flame">
+            <div class="flame">
+              <svg viewBox="0 0 56 64" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stop-color="#ff4500"/>
+                    <stop offset="50%" stop-color="#fbbf24"/>
+                    <stop offset="100%" stop-color="#fef3c7"/>
+                  </linearGradient>
+                </defs>
+                <path d="M28 4 C32 16 44 22 44 36 C44 50 36 60 28 60 C20 60 12 50 12 36 C12 28 18 22 22 18 C22 24 26 26 28 24 C26 18 28 10 28 4 Z" fill="url(#flameGrad)"/>
+              </svg>
+            </div>
+            <div>
+              <div class="hv" id="streak">0</div>
+              <div class="hs" id="streakSub">start today</div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-block">
+          <div class="hl">★ Clean days</div>
+          <div class="hv"><span id="cleanDays">0</span><span class="small">/<span id="elapsedDays">0</span></span></div>
+          <div class="hs" id="cleanRate">0% perfection</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>This Week</h2>
+            <div class="meta" id="weekMeta">week status</div>
+          </div>
+          <div class="status-grid" id="weeklyStats"></div>
+          <div class="week-note" id="weekendMode">Weekend = recovery mode.</div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Penalty Risk</h2>
+            <div class="meta">$100 zone</div>
+          </div>
+          <div class="risk-list" id="penaltyRiskList"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Discipline Map</h2>
+            <div class="meta">35 days</div>
+          </div>
+          <div class="heatmap" id="heatmap"></div>
+          <div class="hm-legend">
+            <span>less</span>
+            <div class="hm-legend-cell s0"></div>
+            <div class="hm-legend-cell s1"></div>
+            <div class="hm-legend-cell s2"></div>
+            <div class="hm-legend-cell s3"></div>
+            <div class="hm-legend-cell s4"></div>
+            <div class="hm-legend-cell s5"></div>
+            <span>ideal</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Shape</h2>
+            <div class="meta">% for the month</div>
+          </div>
+          <div class="radar-wrap">
+            <canvas id="radarChart" role="img" aria-label="Radar across 4 areas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-head">
+          <h2>Daily Score</h2>
+          <div class="meta">monthly trend</div>
+        </div>
+        <div style="position:relative;height:220px;">
+          <canvas id="trendChart" role="img" aria-label="Daily Score Chart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-head">
+          <h2>Monthly Goals</h2>
+          <div class="meta">progress rings</div>
+        </div>
+        <div class="ring-grid" id="ringGrid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Habits — % of days</h2>
+          <div class="meta" id="habitMeta">of 0 elapsed</div>
+        </div>
+        <div class="bars" id="habitBars"></div>
+      </div>
+    </div>
+
+    <!-- CHECK-IN TAB -->
+    <div class="tab-content" id="tab-today">
+      <div class="day-picker">
+        <span class="picker-label">report for</span>
+        <input type="date" id="datePicker" />
+        <button class="picker-btn" id="todayBtn">today</button>
+        <button class="picker-btn" id="prevBtn">←</button>
+        <button class="picker-btn" id="nextBtn">→</button>
+        <span class="picker-day" id="pickerDay"></span>
+      </div>
+
+      <div class="day-score">
+        <div>
+          <div class="score-text">Selected Day Score</div>
+          <div class="score-num"><span id="scoreToday">0</span><span class="max">/12</span></div>
+        </div>
+        <div class="score-msg" id="scoreMsg">Choose a day and complete the check-in.</div>
+      </div>
+
+      <div class="checks-grid">
+        <div class="check-group">
+          <h3>🏋 Body</h3>
+          <div class="check-item" data-check="steps_8k"><div class="check-box"></div><div class="check-label">8k steps</div></div>
+          <div class="check-item" data-check="kcal_under"><div class="check-box"></div><div class="check-label">≤2200 kcal</div></div>
+          <div class="check-item" data-check="kcal_count"><div class="check-box"></div><div class="check-label">Tracked calories</div></div>
+          <div class="check-item" data-check="sleep_7"><div class="check-box"></div><div class="check-label">7+ hours sleep</div></div>
+          <div class="check-item" data-check="no_alco"><div class="check-box"></div><div class="check-label">No alco</div></div>
+          <div class="check-item" data-check="no_smoke"><div class="check-box"></div><div class="check-label">No smoking</div></div>
+          <div class="check-item" data-check="no_sweets"><div class="check-box"></div><div class="check-label">No bad sweets</div></div>
+        </div>
+        <div class="check-group">
+          <h3>🧠 Mindset</h3>
+          <div class="check-item" data-check="silence_10"><div class="check-box"></div><div class="check-label">10 min of silence</div></div>
+          <div class="check-item" data-check="no_phone_morning"><div class="check-box"></div><div class="check-label">No phone in the morning</div></div>
+          <div class="check-item" data-check="no_phone_night"><div class="check-box"></div><div class="check-label">No phone before sleep</div></div>
+          <div class="check-item" data-check="early_rise"><div class="check-box"></div><div class="check-label">Wake-up 6–7</div></div>
+          <div class="check-item" data-check="money_action"><div class="check-box"></div><div class="check-label">1 money action</div></div>
+        </div>
+        <div class="check-group">
+          <h3>📊 Daily Numbers</h3>
+          <div class="input-row"><label>Steps</label><input type="number" data-num="steps" min="0" max="50000"></div>
+          <div class="input-row"><label>Calories</label><input type="number" data-num="kcal" min="0" max="6000"></div>
+          <div class="input-row"><label>Pomodoro</label><input type="number" data-num="pomo" min="0" max="30"></div>
+          <div class="input-row"><label>Content created</label><input type="number" data-num="content" min="0" max="20"></div>
+          <div class="input-row"><label>Diagnostics</label><input type="number" data-num="diag" min="0" max="10"></div>
+          <div class="input-row"><label>Sleep, h</label><input type="number" data-num="sleep_h" min="0" max="14" step="0.5"></div>
+        </div>
+        <div class="check-group">
+          <h3>📝 Other</h3>
+          <div class="check-item" data-check="report_submitted"><div class="check-box"></div><div class="check-label">Report submitted by 00:00</div></div>
+          <div class="check-item" data-check="gym"><div class="check-box"></div><div class="check-label">Gym</div></div>
+          <div class="check-item" data-check="run"><div class="check-box"></div><div class="check-label">Run</div></div>
+          <div class="check-item" data-check="box"><div class="check-box"></div><div class="check-label">Boxing</div></div>
+          <div class="check-item" data-check="new_place"><div class="check-box"></div><div class="check-label">New place/event</div></div>
+        </div>
+      </div>
+
+      <div class="reflection">
+        <textarea id="reflectionText" placeholder="Daily reflection. What happened. What didn't. What tomorrow."></textarea>
+      </div>
+
+      <h2 style="font-family:'Roboto Mono',monospace;font-size:20px;text-transform:uppercase;letter-spacing:0.05em;margin:48px 0 16px;">Monthly Counters</h2>
+      <div class="counter-grid" id="counterGrid"></div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="tab-content" id="tab-history">
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-head">
+          <h2>All 35 days</h2>
+          <div class="meta">click a day</div>
+        </div>
+        <div class="heatmap" id="historyHeatmap"></div>
+      </div>
+      <div id="dayDetailWrap"></div>
+    </div>
+
+    <!-- ACHIEVEMENTS TAB -->
+    <div class="tab-content" id="tab-achievements">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Achievements</h2>
+          <div class="meta"><span id="achUnlocked">0</span> / <span id="achTotal">0</span></div>
+        </div>
+        <div class="achievements" id="achievementsList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="save-indicator" id="saveIndicator"><span class="dot"></span><span id="saveText">Saving…</span></div>
+<div class="toast" id="toast">
+  <div class="toast-label">★ Achievement unlocked</div>
+  <div class="toast-name" id="toastName"></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
