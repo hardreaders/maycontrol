@@ -9,7 +9,7 @@
 <body>
 
 <!-- PASSWORD SCREEN -->
-<div id="passwordScreen">
+<div id="passwordScreen" style="display:none;">
   <div id="passwordBox">
     <div id="passwordTitle">CLEARMAY</div>
     <div id="passwordSub">04.05 → 07.06.2026 · 35 days</div>
@@ -23,7 +23,7 @@
 </div>
 
 <!-- MAIN APP -->
-<div id="app" style="display:none;">
+<div id="app">
   <div class="container">
     <header>
       <h1 class="brand">CLEAR<br>MAY.</h1>
@@ -280,6 +280,15 @@
 </div>
 <div class="tip" id="tip"></div>
 
+<script>
+  // Demo mode — hide password screen immediately
+  document.addEventListener('DOMContentLoaded', function() {
+    var ps = document.getElementById('passwordScreen');
+    var app = document.getElementById('app');
+    if (ps) ps.style.display = 'none';
+    if (app) app.style.display = '';
+  });
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="demo-app.js"></script>
 </body>
