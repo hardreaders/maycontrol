@@ -1,4 +1,4 @@
-﻿
+
 // ============================================================
 // CLEARMAY — app.js
 // Supabase backend + password gate
@@ -74,6 +74,12 @@ const TOTAL_DAYS  = 35;
 const GOALS = {
   pomo: 160, diag: 20, mentees: 5, networking: 2,
   talks: 1, lives: 2, content: 35, init: 30, struct: 10
+};
+
+const MACRO_NORMS = {
+  protein: { goal: 170, mode: 'min' },  // 170g+ — больше лучше
+  fat:     { goal: 75,  mode: 'max' },  // до 75g
+  carbs:   { goal: 260, mode: 'max' }   // до 260g
 };
 
 const SCORE_KEYS = [
@@ -382,13 +388,18 @@ function renderToday() {
     `${dowLong(d)} · ${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}`;
   document.getElementById('todayBtn').classList.toggle('active', selectedDate === todayKey());
 
+  const isPast = dateOnly(new Date(selectedDate)) < dateOnly(new Date());
+
   document.querySelectorAll('#tab-today .check-item').forEach(el => {
-    el.classList.toggle('checked', !!day.checks[el.dataset.check]);
+    const checked = !!day.checks[el.dataset.check];
+    el.classList.toggle('checked', checked);
+    el.classList.toggle('missed-check', isPast && !checked);
   });
 
   document.querySelectorAll('#tab-today input[data-num]').forEach(el => {
     const v = day.nums[el.dataset.num];
     el.value = (v !== undefined && v !== null) ? v : '';
+    el.classList.toggle('past-empty', isPast && (v === undefined || v === null));
   });
 
   document.getElementById('reflectionText').value = day.reflection || '';
@@ -543,13 +554,19 @@ function renderHeatmap(elementId) {
   for (let i = 0; i < startDow; i++) html += '<div></div>';
 
   for (let i = 0; i < TOTAL_DAYS; i++) {
-    const d       = new Date(START_DATE);
+    const d        = new Date(START_DATE);
     d.setDate(d.getDate() + i);
-    const key     = fmtDate(d);
+    const key      = fmtDate(d);
     const isFuture = d > today;
     const isToday  = key === fmtDate(today);
     const day      = state.days[key];
     const score    = day ? dayScore(day) : 0;
+
+    // Прошедший день без данных или score=0 — missed
+    // Сегодня тоже missed если score=0 и время после 23:00
+    const hour     = new Date().getHours();
+    const isPast   = !isFuture && (!isToday || hour >= 23);
+    const isMissed = isPast && score === 0;
 
     let cls = 's0';
     if      (score >= 12) cls = 's5';
@@ -558,7 +575,16 @@ function renderHeatmap(elementId) {
     else if (score >= 4)  cls = 's2';
     else if (score >= 1)  cls = 's1';
 
-    html += `<div class="hm-cell ${cls} ${isFuture?'future':''} ${isToday?'today':''}" data-key="${key}" data-score="${score}"><span class="num">${d.getDate()}</span></div>`;
+    const extraCls = [
+      isFuture ? 'future' : '',
+      isToday  ? 'today'  : '',
+      isMissed ? 'missed' : ''
+    ].filter(Boolean).join(' ');
+
+    html += `<div class="hm-cell ${cls} ${extraCls}" data-key="${key}" data-score="${score}">
+      <span class="num">${d.getDate()}</span>
+      ${isMissed ? '<span class="hm-cross">✕</span>' : ''}
+    </div>`;
   }
   cont.innerHTML = html;
 
@@ -636,56 +662,66 @@ function showDayDetail(key) {
   });
 }
 
-// ---------- RENDER: RADAR CHART ----------
+// ---------- RENDER: RADAR CHART (Shape) ----------
 let radarChart = null;
 function renderRadar() {
-  const elapsed = elapsedDays() || 1;
-  const body = [
-    countDayChecks('steps_8k'),
-    countDayChecks('kcal_under'),
-    countDayChecks('sleep_7'),
-    countDayChecks('no_alco') + countDayChecks('no_smoke') + countDayChecks('no_sweets')
-  ].map(v => Math.round(v / elapsed * 100));
+  const elapsed = Math.max(elapsedDays(), 1);
 
-  const mind = [
-    countDayChecks('silence_10'),
-    countDayChecks('no_phone_morning'),
-    countDayChecks('no_phone_night'),
-    countDayChecks('early_rise'),
-    countDayChecks('money_action')
-  ].map(v => Math.round(v / elapsed * 100));
+  const bodyKeys = ['steps_8k','kcal_under','sleep_7','no_alco','no_smoke','no_sweets'];
+  const mindKeys = ['silence_10','no_phone_morning','no_phone_night','early_rise'];
 
-  const data = {
-    labels: ['Steps','Calories','Sleep','No vices','Silence','No phone AM','No phone PM','Early rise','Money'],
-    datasets: [{
-      data: [body[0], body[1], body[2], body[3], mind[0], mind[1], mind[2], mind[3], mind[4]],
-      borderColor: '#e8e8e8',
-      backgroundColor: 'rgba(232,232,232,0.08)',
-      borderWidth: 2,
-      pointBackgroundColor: '#e8e8e8',
-      pointRadius: 3
-    }]
-  };
+  const bodyAvg    = bodyKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (bodyKeys.length * elapsed) * 100;
+  const mindAvg    = mindKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (mindKeys.length * elapsed) * 100;
+  const moneyPct   = Math.min(100, (sumDays('pomo')/GOALS.pomo*0.5 + sumDays('diag')/GOALS.diag*0.3 + state.monthly.mentees/GOALS.mentees*0.2) * 100);
+  const contentPct = Math.min(100, (sumDays('content')/GOALS.content*0.5 + state.monthly.init/GOALS.init*0.3 + state.monthly.struct/GOALS.struct*0.2) * 100);
 
+  const data = [Math.round(bodyAvg), Math.round(mindAvg), Math.round(moneyPct), Math.round(contentPct)];
+
+  // Ensure canvas exists in radar-wrap
+  const wrap = document.querySelector('.radar-wrap');
+  if (!wrap) return;
+  if (!wrap.querySelector('canvas')) {
+    wrap.innerHTML = '<canvas id="radarChart" role="img" aria-label="Shape radar"></canvas>';
+  }
   const ctx = document.getElementById('radarChart');
   if (!ctx) return;
+
   if (radarChart) radarChart.destroy();
   radarChart = new Chart(ctx, {
     type: 'radar',
-    data,
+    data: {
+      labels: ['Body', 'Mindset', 'Money', 'Content'],
+      datasets: [{
+        data,
+        backgroundColor: 'rgba(255,255,255,0.22)',
+        borderColor: '#e8e8e8',
+        borderWidth: 2,
+        pointBackgroundColor: '#e8e8e8',
+        pointBorderColor: '#e8e8e8',
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: { top: 20, bottom: 20, left: 20, right: 20 }
+      },
+      plugins: { legend: { display: false } },
       scales: {
         r: {
+          angleLines: { color: 'rgba(255,255,255,0.06)' },
+          grid:       { color: 'rgba(255,255,255,0.06)' },
           min: 0, max: 100,
-          ticks: { display: false },
-          grid:  { color: 'rgba(232,232,232,0.15)' },
-          pointLabels: { color: '#747474', font: { family: 'Roboto Mono', size: 10, weight: '800' } },
-          angleLines: { color: 'rgba(232,232,232,0.1)' }
+          ticks: { display: false, stepSize: 25 },
+          pointLabels: {
+            color: '#888',
+            font: { family: 'Roboto Mono', size: 11, weight: 700 },
+            padding: 10
+          }
         }
-      },
-      plugins: { legend: { display: false } }
+      }
     }
   });
 }
@@ -844,6 +880,102 @@ function renderAchievements() {
   }).join('');
 }
 
+// ---------- RENDER: MACROS ----------
+function renderMacros() {
+  const el = elapsedDays() || 1;
+  const today = fmtDate(currentChallengeDate());
+  const day   = state.days[today];
+
+  const macros = [
+    {
+      key:   'protein',
+      label: 'Protein',
+      unit:  'g',
+      goal:  MACRO_NORMS.protein.goal,
+      mode:  'min',
+      val:   day?.nums?.protein ?? null,
+      hint:  '170g+ target'
+    },
+    {
+      key:   'fat',
+      label: 'Fat',
+      unit:  'g',
+      goal:  MACRO_NORMS.fat.goal,
+      mode:  'max',
+      val:   day?.nums?.fat ?? null,
+      hint:  'up to 75g'
+    },
+    {
+      key:   'carbs',
+      label: 'Carbs',
+      unit:  'g',
+      goal:  MACRO_NORMS.carbs.goal,
+      mode:  'max',
+      val:   day?.nums?.carbs ?? null,
+      hint:  'up to 260g'
+    }
+  ];
+
+  const wrap = document.getElementById('macrosWrap');
+  if (!wrap) return;
+
+  wrap.innerHTML = macros.map(m => {
+    if (m.val === null) {
+      return `
+        <div class="macro-row">
+          <div class="macro-info">
+            <div class="macro-label">${m.label}</div>
+            <div class="macro-hint">${m.hint}</div>
+          </div>
+          <div class="macro-bar-wrap">
+            <div class="macro-bar-track">
+              <span class="macro-empty">no data today</span>
+            </div>
+          </div>
+          <div class="macro-val dim">—<span class="macro-unit"> g</span></div>
+        </div>`;
+    }
+
+    const pct  = Math.min(Math.round(m.val / m.goal * 100), 200);
+    const over = m.val > m.goal;
+
+    // Status logic
+    let status, statusCls;
+    if (m.mode === 'min') {
+      // protein — more is better
+      if (m.val >= m.goal)      { status = '✓ good';  statusCls = 'ok'; }
+      else if (m.val >= m.goal * 0.8) { status = 'low';   statusCls = 'warn'; }
+      else                      { status = 'too low'; statusCls = 'danger'; }
+    } else {
+      // fat/carbs — less is better
+      if (m.val <= m.goal)      { status = '✓ ok';    statusCls = 'ok'; }
+      else if (m.val <= m.goal * 1.15) { status = '+' + (m.val - m.goal) + 'g over'; statusCls = 'warn'; }
+      else                      { status = '+' + (m.val - m.goal) + 'g over'; statusCls = 'danger'; }
+    }
+
+    const barPct  = Math.min(pct, 100);
+    const overPct = over ? Math.min(Math.round((m.val - m.goal) / m.goal * 100), 100) : 0;
+    const freeGreenPct = (!over && m.mode === 'max') ? (100 - barPct) : 0;
+
+    return `
+      <div class="macro-row">
+        <div class="macro-info">
+          <div class="macro-label">${m.label}</div>
+          <div class="macro-hint">${m.hint}</div>
+        </div>
+        <div class="macro-bar-wrap">
+          <div class="macro-bar-track">
+            <div class="macro-bar-fill ${statusCls}" style="width:${barPct}%"></div>
+            ${freeGreenPct > 0 ? `<div class="macro-bar-free" style="width:${freeGreenPct}%;left:${barPct}%"></div>` : ''}
+            ${over ? `<div class="macro-bar-over ${m.mode === 'min' ? 'good' : ''}" style="width:${overPct}%"></div>` : ''}
+          </div>
+          <div class="macro-status ${statusCls}">${status}</div>
+        </div>
+        <div class="macro-val ${statusCls === 'ok' ? 'done' : ''}">${m.val}<span class="macro-unit"> g</span></div>
+      </div>`;
+  }).join('');
+}
+
 // ---------- RENDER: DASHBOARD ----------
 function renderDashboard() {
   const elapsed = elapsedDays();
@@ -869,12 +1001,120 @@ function renderDashboard() {
 
   renderThisWeek();
   renderPenaltyRisk();
+  renderMacros();
   renderHeatmap('heatmap');
   renderRadar();
   renderTrend();
   renderRings();
   renderHabitBars(elapsed);
 }
+
+// ---------- RENDER: REPORT ----------
+function renderReport() {
+  const elapsed    = elapsedDays();
+  const d          = new Date();
+  const dateStr    = `${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+  const streakInfo = maxStreakDays();
+  const cleanDays  = Object.values(state.days).filter(d => dayScore(d) >= 10).length;
+  const cleanPct   = elapsed ? Math.round(cleanDays / elapsed * 100) : 0;
+  const xpInfo     = levelFromXP(calcXP());
+  const pomo       = sumDays('pomo');
+  const diag       = sumDays('diag');
+  const content    = sumDays('content');
+  const todayDay      = state.days[fmtDate(new Date())];
+  const todayScore    = todayDay ? dayScore(todayDay) : 0;
+  const todayPomo     = todayDay?.nums?.pomo ?? null;
+  const todayKcal     = todayDay?.nums?.kcal ?? null;
+  const todayReport   = !!todayDay?.checks?.report_submitted;
+  const todaySteps    = todayDay?.nums?.steps ?? null;
+  const isWeekend     = new Date().getDay() === 0 || new Date().getDay() === 6;
+  const el2           = Math.max(elapsed, 1);
+  const challengePct = elapsed ? Math.round(elapsed/TOTAL_DAYS*100) : 0;
+
+  const bodyKeys = ['steps_8k','kcal_under','sleep_7','no_alco','no_smoke','no_sweets'];
+  const mindKeys = ['silence_10','no_phone_morning','no_phone_night','early_rise'];
+  const spiderData = [
+    Math.round(bodyKeys.reduce((s,k)=>s+countDayChecks(k),0)/(bodyKeys.length*el2)*100),
+    Math.round(mindKeys.reduce((s,k)=>s+countDayChecks(k),0)/(mindKeys.length*el2)*100),
+    Math.min(100,Math.round((pomo/GOALS.pomo*0.5+diag/GOALS.diag*0.3+state.monthly.mentees/GOALS.mentees*0.2)*100)),
+    Math.min(100,Math.round((content/GOALS.content*0.5+state.monthly.init/GOALS.init*0.3+state.monthly.struct/GOALS.struct*0.2)*100))
+  ];
+  const spiderLabels = ['Body','Mindset','Money','Content'];
+  const overallShape = Math.round(spiderData.reduce((a,b)=>a+b,0)/4);
+
+  function buildSpider(data, labels, size) {
+    const pad = 36;
+    const cx = size/2, cy = size/2, r = (size/2 - pad) * 0.97;
+    const vb = `${-pad} ${-pad} ${size+pad*2} ${size+pad*2}`;
+    const angles = [-90, 0, 90, 180];
+    const grids = [0.25,0.5,0.75,1.0].map(lvl => {
+      const pts = angles.map(a=>{const rad=a*Math.PI/180;return `${cx+r*lvl*Math.cos(rad)},${cy+r*lvl*Math.sin(rad)}`;});
+      return `<polygon points="${pts}" fill="none" stroke="rgba(232,232,232,0.1)" stroke-width="1"/>`;
+    }).join('');
+    const axes = angles.map(a=>{const rad=a*Math.PI/180;return `<line x1="${cx}" y1="${cy}" x2="${cx+r*Math.cos(rad)}" y2="${cy+r*Math.sin(rad)}" stroke="rgba(232,232,232,0.1)" stroke-width="1"/>`;}).join('');
+    const dataPts = angles.map((a,i)=>{const rad=a*Math.PI/180,dist=r*Math.min(data[i],100)/100;return `${cx+dist*Math.cos(rad)},${cy+dist*Math.sin(rad)}`;}).join(' ');
+    const lbls = angles.map((a,i)=>{
+      const rad=a*Math.PI/180,lx=cx+(r+26)*Math.cos(rad),ly=cy+(r+26)*Math.sin(rad);
+      const anchor=a===0?'start':a===180?'end':'middle';
+      const dy=a===-90?'-4':a===90?'12':'4';
+      return `<text x="${lx}" y="${ly}" dy="${dy}" text-anchor="${anchor}" font-family="Roboto Mono,monospace" font-size="11" font-weight="800" fill="#888">${labels[i]}</text><text x="${lx}" y="${ly}" dy="${a===-90?'10':a===90?'24':'17'}" text-anchor="${anchor}" font-family="Roboto Mono,monospace" font-size="9" fill="#555">${data[i]}%</text>`;
+    }).join('');
+    return `<svg viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(232,232,232,0.05)" stroke-width="1"/>${grids}${axes}<polygon points="${dataPts}" fill="rgba(255,255,255,0.12)" stroke="#e8e8e8" stroke-width="2"/><circle cx="${cx}" cy="${cy}" r="4" fill="#e8e8e8"/>${lbls}</svg>`;
+  }
+
+  const bar = (pct, h=6) => `<div class="rp2-bar" style="height:${h}px"><div style="width:${Math.min(100,pct)}%"></div></div>`;
+
+  const wrap = document.getElementById('reportWrap');
+  if (!wrap) return;
+
+  wrap.innerHTML = `
+  <div class="rp2-page">
+    <div class="rp2-top">
+      <div>
+        <div class="rp2-brand">CLEARMAY</div>
+        <div class="rp2-meta">${dateStr} &nbsp;·&nbsp; Day ${elapsed} / ${TOTAL_DAYS} &nbsp;·&nbsp; ${TOTAL_DAYS-elapsed} left</div>
+      </div>
+    </div>
+
+    <div class="rp2-big4">
+      <div class="rp2-big">
+        <div class="rp2-big-v">${todayScore}<span class="rp2-big-s">/12</span></div>
+        <div class="rp2-big-l">Today score</div>
+        ${bar(todayScore/12*100, 4)}
+      </div>
+      <div class="rp2-big">
+        <div class="rp2-big-v">${streakInfo.current}<span class="rp2-big-s">d</span></div>
+        <div class="rp2-big-l">Streak</div>
+        ${bar(streakInfo.current/TOTAL_DAYS*100, 4)}
+      </div>
+    </div>
+
+    <div class="rp2-mid">
+      <div class="rp2-spider-wrap">
+        <div class="rp2-spider-title">Shape &nbsp;<span>${overallShape}%</span></div>
+        <div class="rp2-spider">${buildSpider(spiderData, spiderLabels, 260)}</div>
+      </div>
+      <div class="rp2-progress-wrap">
+        <div class="rp2-prog-title">Challenge</div>
+        <div class="rp2-prog-big">${challengePct}<span>%</span></div>
+        ${bar(challengePct, 8)}
+        <div class="rp2-prog-sub">${elapsed} of ${TOTAL_DAYS} days done</div>
+
+        <div class="rp2-prog-title" style="margin-top:24px;">Key metrics</div>
+        <div class="rp2-goal-row"><span>Pomodoro</span><span>${pomo}/${GOALS.pomo}</span></div>
+        ${bar(pomo/GOALS.pomo*100, 5)}
+        <div class="rp2-goal-row"><span>Calories today</span><span>${todayKcal !== null ? todayKcal : '—'}/2200</span></div>
+        ${bar(todayKcal !== null ? Math.min(todayKcal/2200*100, 100) : 0, 5)}
+        <div class="rp2-goal-row"><span>Report today</span><span style="color:${todayReport ? '#64c864' : isWeekend ? 'var(--text-faint)' : 'var(--danger)'}">${todayReport ? '✓ done' : isWeekend ? '— weekend' : '✕ missing'}</span></div>
+      </div>
+    </div>
+
+    <div class="rp2-footer">
+      CLEARMAY &nbsp;·&nbsp; ${dateStr} &nbsp;·&nbsp; day ${elapsed}/${TOTAL_DAYS} &nbsp;·&nbsp; streak ${streakInfo.current} &nbsp;·&nbsp; lvl ${xpInfo.level} &nbsp;·&nbsp; ${cleanPct}% clean
+    </div>
+  </div>`;
+}
+
 
 // ---------- EVENT LISTENERS ----------
 function bindEvents() {
@@ -889,6 +1129,7 @@ function bindEvents() {
       if (t.dataset.tab === 'history')      renderHistoryHeatmap();
       if (t.dataset.tab === 'today')        renderToday();
       if (t.dataset.tab === 'achievements') renderAchievements();
+      if (t.dataset.tab === 'report')       renderReport();
     });
   });
 
@@ -922,6 +1163,7 @@ function bindEvents() {
       const k   = el.dataset.check;
       day.checks[k] = !day.checks[k];
       el.classList.toggle('checked');
+      el.classList.toggle('missed-check', dateOnly(new Date(selectedDate)) < dateOnly(new Date()) && !day.checks[k]);
       updateScoreToday();
       scheduleSave();
       checkNewAchievements();
@@ -959,7 +1201,6 @@ async function initApp() {
 // ---------- BOOT ----------
 document.addEventListener('DOMContentLoaded', () => {
   if (sessionStorage.getItem('cm_auth') === '1') {
-    // Already authenticated — skip password screen
     document.getElementById('passwordScreen').style.display = 'none';
     document.getElementById('app').style.display = '';
     initApp();
