@@ -635,6 +635,11 @@ function showDayDetail(key) {
   if (day.checks?.gym) sportItems.push('Gym');
   if (day.checks?.run) sportItems.push('Run');
   if (day.checks?.box) sportItems.push('Boxing');
+  const contentItems = [];
+  if (day.checks?.content_story)   contentItems.push('Story');
+  if (day.checks?.content_tg)      contentItems.push('Post in TG');
+  if (day.checks?.content_threads) contentItems.push('Post in Threads');
+  if (day.checks?.content_reels)   contentItems.push('Reels');
 
   wrap.innerHTML = `
     <div class="day-detail-panel">
@@ -646,6 +651,7 @@ function showDayDetail(key) {
         <div><div style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Pomodoro</div><div style="font-family:'Roboto Mono',serif;font-size:20px;font-weight:600;">${day.nums.pomo ?? '—'}</div></div>
         <div><div style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Sleep</div><div style="font-family:'Roboto Mono',serif;font-size:20px;font-weight:600;">${day.nums.sleep_h ?? '—'} h</div></div>
         <div><div style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Sport</div><div style="font-family:'Roboto Mono',serif;font-size:14px;font-weight:600;">${sportItems.join(' · ') || '—'}</div></div>
+        <div><div style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:4px;">Content</div><div style="font-family:'Roboto Mono',serif;font-size:14px;font-weight:600;">${contentItems.join(' · ') || '—'}</div></div>
       </div>
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;color:var(--text-faint);margin-bottom:8px;">Completed</div>
       <div style="font-size:13px;color:var(--text-dim);line-height:1.8;margin-bottom:24px;">${checked.length ? checked.map(k => HABIT_LABELS[k]).join(' · ') : 'nothing'}</div>
@@ -670,10 +676,36 @@ function renderRadar() {
   const bodyKeys = ['steps_8k','kcal_under','sleep_7','no_alco','no_smoke','no_sweets'];
   const mindKeys = ['silence_10','no_phone_morning','no_phone_night','early_rise'];
 
-  const bodyAvg    = bodyKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (bodyKeys.length * elapsed) * 100;
-  const mindAvg    = mindKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (mindKeys.length * elapsed) * 100;
-  const moneyPct   = Math.min(100, (sumDays('pomo')/GOALS.pomo*0.5 + sumDays('diag')/GOALS.diag*0.3 + state.monthly.mentees/GOALS.mentees*0.2) * 100);
-  const contentPct = Math.min(100, (sumDays('content')/GOALS.content*0.5 + state.monthly.init/GOALS.init*0.3 + state.monthly.struct/GOALS.struct*0.2) * 100);
+  const bodyAvg = bodyKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (bodyKeys.length * elapsed) * 100;
+  const mindAvg = mindKeys.map(k => countDayChecks(k)).reduce((a,b)=>a+b,0) / (mindKeys.length * elapsed) * 100;
+
+  // Money: pace-based — compare actual vs expected pace for elapsed days
+  const pomoPace  = Math.min(100, sumDays('pomo')    / (GOALS.pomo    / TOTAL_DAYS * elapsed) * 100);
+  const diagPace  = Math.min(100, sumDays('diag')    / (GOALS.diag    / TOTAL_DAYS * elapsed) * 100);
+  const mentPace  = Math.min(100, state.monthly.mentees / (GOALS.mentees / TOTAL_DAYS * elapsed) * 100);
+  const moneyPct  = Math.min(100, pomoPace * 0.5 + diagPace * 0.3 + mentPace * 0.2);
+
+  // Content: based on numeric inputs (story/tg/threads/reels) + content pieces + monthly goals
+  const contentKeys = ['content_story','content_tg','content_threads','content_reels'];
+  const contentGoals = { content_story: 3, content_tg: 1, content_threads: 1, content_reels: 1 };
+  
+  // Average % of goal completion per day for each content type
+  const contentAvgs = contentKeys.map(k => {
+    const total = Object.values(state.days).reduce((sum, d) => sum + (d.nums?.[k] || 0), 0);
+    const expected = contentGoals[k] * elapsed;
+    return expected > 0 ? Math.min(total / expected * 100, 100) : 0;
+  });
+  const contentDailyPct = contentAvgs.reduce((a,b)=>a+b,0) / contentKeys.length;
+  
+  const contentNumPace  = Math.min(100, sumDays('content') / (GOALS.content / TOTAL_DAYS * elapsed) * 100);
+  const initPace        = Math.min(100, state.monthly.init   / (GOALS.init   / TOTAL_DAYS * elapsed) * 100);
+  const structPace      = Math.min(100, state.monthly.struct / (GOALS.struct / TOTAL_DAYS * elapsed) * 100);
+  const contentPct = Math.min(100,
+    contentDailyPct  * 0.50 +
+    contentNumPace   * 0.25 +
+    initPace         * 0.15 +
+    structPace       * 0.10
+  );
 
   const data = [Math.round(bodyAvg), Math.round(mindAvg), Math.round(moneyPct), Math.round(contentPct)];
 
@@ -976,6 +1008,35 @@ function renderMacros() {
   }).join('');
 }
 
+// ---------- RENDER: CONTENT STATS ----------
+function renderContentStats() {
+  const key  = fmtDate(currentChallengeDate());
+  const nums = state.days[key]?.nums || {};
+  const story   = nums.content_story   || 0;
+  const tg      = nums.content_tg      || 0;
+  const threads = nums.content_threads || 0;
+  const reels   = nums.content_reels   || 0;
+  const total   = story + tg + threads + reels;
+
+  const grid = document.getElementById('contentStatGrid');
+  const meta = document.getElementById('contentTotalMeta');
+  if (!grid || !meta) return;
+
+  meta.textContent = `${total} total today`;
+
+  grid.innerHTML = [
+    { label: 'Story',   val: story   },
+    { label: 'TG',      val: tg      },
+    { label: 'Threads', val: threads },
+    { label: 'Reels',   val: reels   }
+  ].map(c => `
+    <div class="csg-cell">
+      <div class="csg-num ${c.val > 0 ? 'lit' : ''}">${c.val}</div>
+      <div class="csg-lbl">${c.label}</div>
+    </div>
+  `).join('');
+}
+
 // ---------- RENDER: DASHBOARD ----------
 function renderDashboard() {
   const elapsed = elapsedDays();
@@ -1002,6 +1063,7 @@ function renderDashboard() {
   renderThisWeek();
   renderPenaltyRisk();
   renderMacros();
+  renderContentStats();
   renderHeatmap('heatmap');
   renderRadar();
   renderTrend();
@@ -1036,8 +1098,31 @@ function renderReport() {
   const spiderData = [
     Math.round(bodyKeys.reduce((s,k)=>s+countDayChecks(k),0)/(bodyKeys.length*el2)*100),
     Math.round(mindKeys.reduce((s,k)=>s+countDayChecks(k),0)/(mindKeys.length*el2)*100),
-    Math.min(100,Math.round((pomo/GOALS.pomo*0.5+diag/GOALS.diag*0.3+state.monthly.mentees/GOALS.mentees*0.2)*100)),
-    Math.min(100,Math.round((content/GOALS.content*0.5+state.monthly.init/GOALS.init*0.3+state.monthly.struct/GOALS.struct*0.2)*100))
+    (() => {
+      const pomoPace = Math.min(100, pomo / (GOALS.pomo / TOTAL_DAYS * el2) * 100);
+      const diagPace = Math.min(100, sumDays('diag') / (GOALS.diag / TOTAL_DAYS * el2) * 100);
+      const mentPace = Math.min(100, state.monthly.mentees / (GOALS.mentees / TOTAL_DAYS * el2) * 100);
+      return Math.min(100, Math.round(pomoPace * 0.5 + diagPace * 0.3 + mentPace * 0.2));
+    })(),
+    (() => {
+      const contentKeys  = ['content_story','content_tg','content_threads','content_reels'];
+      const contentGoals = { content_story: 3, content_tg: 1, content_threads: 1, content_reels: 1 };
+      const contentAvgs  = contentKeys.map(k => {
+        const total    = Object.values(state.days).reduce((sum, d) => sum + (d.nums?.[k] || 0), 0);
+        const expected = contentGoals[k] * el2;
+        return expected > 0 ? Math.min(total / expected * 100, 100) : 0;
+      });
+      const contentDailyPct = contentAvgs.reduce((a,b)=>a+b,0) / contentKeys.length;
+      const contentNumPace  = Math.min(100, content / (GOALS.content / TOTAL_DAYS * el2) * 100);
+      const initPace        = Math.min(100, state.monthly.init   / (GOALS.init   / TOTAL_DAYS * el2) * 100);
+      const structPace      = Math.min(100, state.monthly.struct / (GOALS.struct / TOTAL_DAYS * el2) * 100);
+      return Math.min(100, Math.round(
+        contentDailyPct * 0.50 +
+        contentNumPace  * 0.25 +
+        initPace        * 0.15 +
+        structPace      * 0.10
+      ));
+    })()
   ];
   const spiderLabels = ['Body','Mindset','Money','Content'];
   const overallShape = Math.round(spiderData.reduce((a,b)=>a+b,0)/4);
@@ -1107,6 +1192,106 @@ function renderReport() {
         ${bar(todayKcal !== null ? Math.min(todayKcal/2200*100, 100) : 0, 5)}
         <div class="rp2-goal-row"><span>Report today</span><span style="color:${todayReport ? '#64c864' : isWeekend ? 'var(--text-faint)' : 'var(--danger)'}">${todayReport ? '✓ done' : isWeekend ? '— weekend' : '✕ missing'}</span></div>
       </div>
+    </div>
+
+    <div class="rp2-rings-row">
+      ${(() => {
+        // --- Ring 1: Macros (БЖУ) ---
+        const todayNums = state.days[fmtDate(new Date())]?.nums || {};
+        const protein = todayNums.protein ?? 0;
+        const fat     = todayNums.fat     ?? 0;
+        const carbs   = todayNums.carbs   ?? 0;
+
+        const proteinPct = Math.min(protein / 170 * 100, 100);
+        const fatPct     = fat > 0 ? Math.min(fat / 75 * 100, 100) : 0;
+        const carbsPct   = carbs > 0 ? Math.min(carbs / 260 * 100, 100) : 0;
+        const macroScore = Math.round((proteinPct + (100 - Math.min(fatPct, 100)) + (100 - Math.min(carbsPct, 100))) / 3);
+
+        function arc(pct, r, color, sw, offset) {
+          const c = 2 * Math.PI * r;
+          const dash = c * Math.min(pct, 100) / 100;
+          return `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+            stroke-dasharray="${dash} ${c}" stroke-dashoffset="${offset}"
+            stroke-linecap="round" transform="rotate(-90 60 60)"/>`;
+        }
+
+        const macroSvg = `
+          <svg viewBox="0 0 120 120" class="rp2-donut-svg">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            <circle cx="60" cy="60" r="38" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            <circle cx="60" cy="60" r="28" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            ${arc(proteinPct, 48, protein >= 170 ? 'rgba(232,232,232,0.9)' : 'rgba(255,50,50,0.7)', 7, 0)}
+            ${arc(100 - Math.min(fatPct,100), 38, fat <= 75 ? 'rgba(180,180,180,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
+            ${arc(100 - Math.min(carbsPct,100), 28, carbs <= 260 ? 'rgba(120,120,120,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
+            <text x="60" y="56" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="16" font-weight="700" fill="#e8e8e8">${macroScore}%</text>
+            <text x="60" y="70" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="7" font-weight="800" fill="#747474">MACROS</text>
+          </svg>`;
+
+        const macroLegend = `
+          <div class="rp2-donut-legend">
+            <div class="rp2-dl-row"><span class="rp2-dl-dot" style="background:rgba(232,232,232,0.9)"></span><span>Protein</span><span class="rp2-dl-val ${protein >= 170 ? 'ok' : 'bad'}">${protein || '—'}g</span></div>
+            <div class="rp2-dl-row"><span class="rp2-dl-dot" style="background:rgba(180,180,180,0.8)"></span><span>Fat</span><span class="rp2-dl-val ${fat <= 75 ? 'ok' : 'bad'}">${fat || '—'}g</span></div>
+            <div class="rp2-dl-row"><span class="rp2-dl-dot" style="background:rgba(120,120,120,0.8)"></span><span>Carbs</span><span class="rp2-dl-val ${carbs <= 260 ? 'ok' : 'bad'}">${carbs || '—'}g</span></div>
+          </div>`;
+
+        // --- Ring 2: Content metrics ---
+        const todayContent = state.days[fmtDate(new Date())]?.nums || {};
+        const story   = todayContent.content_story   || 0;
+        const tg      = todayContent.content_tg      || 0;
+        const threads = todayContent.content_threads || 0;
+        const reels   = todayContent.content_reels   || 0;
+
+        // Goals per day (примерно)
+        const storyGoal   = 3;
+        const tgGoal      = 1;
+        const threadsGoal = 1;
+        const reelsGoal   = 1;
+
+        const storyPct   = Math.min(story   / storyGoal   * 100, 100);
+        const tgPct      = Math.min(tg      / tgGoal      * 100, 100);
+        const threadsPct = Math.min(threads / threadsGoal * 100, 100);
+        const reelsPct   = Math.min(reels   / reelsGoal   * 100, 100);
+
+        const overallContent = Math.round((storyPct + tgPct + threadsPct + reelsPct) / 4);
+
+        /* === CONTENT DONUT SVG (saved, not used in UI) ===
+        const contentSvg = `
+          <svg viewBox="0 0 120 120" class="rp2-donut-svg">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            <circle cx="60" cy="60" r="38" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            <circle cx="60" cy="60" r="28" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            <circle cx="60" cy="60" r="18" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
+            ${arc(storyPct,   48, 'rgba(232,232,232,0.9)', 7, 0)}
+            ${arc(tgPct,      38, 'rgba(180,180,180,0.8)', 7, 0)}
+            ${arc(threadsPct, 28, 'rgba(140,140,140,0.8)', 7, 0)}
+            ${arc(reelsPct,   18, 'rgba(100,100,100,0.8)', 7, 0)}
+            <text x="60" y="56" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="16" font-weight="700" fill="#e8e8e8">${overallContent}%</text>
+            <text x="60" y="70" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="7" font-weight="800" fill="#747474">CONTENT</text>
+          </svg>`;
+        === END SAVED CODE === */
+
+        const mkNum = (val) => {
+          return `<span class="rp2-cn-val ${val > 0 ? 'ok' : 'zero'}">${val}</span>`;
+        };
+
+        return `
+          <div class="rp2-donut-card">
+            <div class="rp2-donut-title">Macros · Today</div>
+            <div class="rp2-donut-body">
+              ${macroSvg}
+              ${macroLegend}
+            </div>
+          </div>
+          <div class="rp2-donut-card">
+            <div class="rp2-donut-title">Content · Today &nbsp;<span style="color:var(--text-faint);font-weight:400">${story + tg + threads + reels} total</span></div>
+            <div class="rp2-content-grid">
+              <div class="rp2-cg-cell"><div class="rp2-cg-num ${story > 0 ? 'lit' : ''}">${story}</div><div class="rp2-cg-lbl">Story</div></div>
+              <div class="rp2-cg-cell"><div class="rp2-cg-num ${tg > 0 ? 'lit' : ''}">${tg}</div><div class="rp2-cg-lbl">TG</div></div>
+              <div class="rp2-cg-cell"><div class="rp2-cg-num ${threads > 0 ? 'lit' : ''}">${threads}</div><div class="rp2-cg-lbl">Threads</div></div>
+              <div class="rp2-cg-cell"><div class="rp2-cg-num ${reels > 0 ? 'lit' : ''}">${reels}</div><div class="rp2-cg-lbl">Reels</div></div>
+            </div>
+          </div>`;
+      })()}
     </div>
 
     <div class="rp2-footer">
