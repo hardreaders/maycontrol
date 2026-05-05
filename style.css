@@ -2208,3 +2208,381 @@ input[type="number"] {
 .demo-link:hover {
   background: var(--text);
 }
+
+/* =============================================
+   MACROS (БЖУ) UNIFIED CHART in Report
+   ============================================= */
+.rp2-macro-chart-section {
+  border: 2px solid var(--border-soft);
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rp2-mc-unified-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 150px;
+  position: relative;
+  padding-bottom: 22px;
+}
+
+/* Goal lines — behind bars, full width */
+.rp2-mc-goal-lines {
+  display: none; /* replaced by .rp2-mc-bars-area lines */
+}
+
+.rp2-mc-bars-area {
+  position: absolute;
+  inset: 0 0 22px 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* Horizontal goal lines inside bars area */
+.rp2-mc-hline {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.rp2-mc-hline::before {
+  content: attr(data-label);
+  position: absolute;
+  left: 2px;
+  top: -9px;
+  font-size: 7px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: rgba(232,232,232,0.28);
+  white-space: nowrap;
+}
+
+.rp2-mc-hline-protein { background: rgba(232,232,232,0.2); }
+.rp2-mc-hline-fat     { background: rgba(180,180,180,0.15); }
+.rp2-mc-hline-carbs   { background: rgba(120,120,120,0.15); }
+
+/* Day group */
+.rp2-mc-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.rp2-mc-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+}
+
+/* Individual bar */
+.rp2-mcb {
+  flex: 1;
+  min-height: 2px;
+  transition: height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Protein */
+.rp2-mcb.rp2-mcb-protein-ok  { background: rgba(232,232,232,0.88); }
+.rp2-mcb.rp2-mcb-protein-low { background: rgba(255,32,32,0.55); }
+
+/* Fat */
+.rp2-mcb.rp2-mcb-fat-ok   { background: rgba(180,180,180,0.72); }
+.rp2-mcb.rp2-mcb-fat-over { background: rgba(255,32,32,0.55); }
+
+/* Carbs */
+.rp2-mcb.rp2-mcb-carbs-ok   { background: rgba(110,110,110,0.72); }
+.rp2-mcb.rp2-mcb-carbs-over { background: rgba(255,32,32,0.55); }
+
+/* Empty */
+.rp2-mcb.rp2-mcb-empty {
+  min-height: 5px;
+  background: rgba(232,232,232,0.07);
+  border: 1px dashed rgba(232,232,232,0.15);
+}
+
+/* Day label */
+.rp2-mc-day {
+  position: absolute;
+  bottom: -18px;
+  font-size: 7px;
+  font-weight: 800;
+  color: var(--text-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Legend */
+.rp2-mc-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  color: var(--text-faint);
+  align-items: center;
+  border-top: 1px solid var(--border-faint);
+  padding-top: 10px;
+}
+
+.rp2-mc-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.rp2-mc-dot.good      { background: rgba(232,232,232,0.88); }
+.rp2-mc-dot.over      { background: rgba(255,32,32,0.6); }
+.rp2-mc-dot.empty-dot { background: rgba(232,232,232,0.07); border: 1px dashed rgba(232,232,232,0.2); }
+
+@media (max-width: 600px) {
+  .rp2-mc-unified-chart { height: 110px; gap: 6px; }
+  .rp2-mc-day           { font-size: 6px; }
+}
+
+/* =============================================
+   DONUT RINGS ROW in Report
+   ============================================= */
+.rp2-rings-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.rp2-donut-card {
+  border: 2px solid var(--border-soft);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rp2-donut-title {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border-faint);
+  padding-bottom: 6px;
+}
+
+.rp2-donut-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+}
+
+.rp2-donut-svg {
+  flex: 1;
+  min-width: 80px;
+  max-width: 140px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.rp2-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+
+.rp2-dl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  color: var(--text-dim);
+}
+
+.rp2-dl-row span:nth-child(2) {
+  flex: 1;
+}
+
+.rp2-dl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.rp2-dl-val {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.rp2-dl-val.ok  { color: var(--text-dim); }
+.rp2-dl-val.bad { color: var(--danger); }
+
+@media (max-width: 600px) {
+  .rp2-rings-row  { grid-template-columns: 1fr; }
+  .rp2-donut-svg  { width: 80px; height: 80px; }
+  .rp2-donut-card { padding: 12px; }
+}
+
+/* Content numbers block in Report */
+.rp2-content-nums {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.rp2-cn-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-faint);
+  padding-bottom: 8px;
+  gap: 8px;
+}
+
+.rp2-cn-row:last-of-type { border-bottom: none; }
+
+.rp2-cn-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  color: var(--text-dim);
+}
+
+.rp2-cn-val {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.rp2-cn-val.ok      { color: var(--text); }
+.rp2-cn-val.partial { color: var(--text-dim); }
+.rp2-cn-val.zero    { color: var(--text-faint); }
+
+.rp2-cn-goal {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-faint);
+  letter-spacing: -0.04em;
+}
+
+.rp2-cn-total {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  color: var(--text-faint);
+  border-top: 2px solid var(--border-soft);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.rp2-cn-total span {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.05em;
+}
+
+/* Content 2x2 grid in Report */
+.rp2-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.rp2-cg-cell {
+  border: 2px solid var(--border-faint);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rp2-cg-num {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.rp2-cg-num.lit { color: var(--text); }
+
+.rp2-cg-lbl {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+/* Content stats grid in Dashboard */
+.content-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+.csg-cell {
+  border: 2px solid var(--border-faint);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.csg-num {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.csg-num.lit { color: var(--text); }
+
+.csg-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+@media (max-width: 600px) {
+  .content-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .csg-num { font-size: 36px; }
+}
