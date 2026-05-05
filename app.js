@@ -493,8 +493,8 @@ function renderThisWeek() {
 
 // ---------- RENDER: PENALTY RISK ----------
 function renderPenaltyRisk() {
-  const today      = currentChallengeDate();
-  const todayK     = fmtDate(today);
+  const today      = new Date(selectedDate);
+  const todayK     = selectedDate;
   const day        = state.days[todayK];
   const kcal       = day?.nums?.kcal;
   const reportDone = !!day?.checks?.report_submitted;
@@ -915,8 +915,16 @@ function renderAchievements() {
 // ---------- RENDER: MACROS ----------
 function renderMacros() {
   const el = elapsedDays() || 1;
-  const today = fmtDate(currentChallengeDate());
-  const day   = state.days[today];
+  const day = state.days[selectedDate];
+
+  // Update heading label
+  const lbl = document.getElementById('macrosDateLabel');
+  if (lbl) {
+    const d = new Date(selectedDate);
+    lbl.textContent = selectedDate === todayKey()
+      ? 'Today'
+      : `${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
 
   const macros = [
     {
@@ -1010,19 +1018,21 @@ function renderMacros() {
 
 // ---------- RENDER: CONTENT STATS ----------
 function renderContentStats() {
-  const key  = fmtDate(currentChallengeDate());
-  const nums = state.days[key]?.nums || {};
-  const story   = nums.content_story   || 0;
-  const tg      = nums.content_tg      || 0;
-  const threads = nums.content_threads || 0;
-  const reels   = nums.content_reels   || 0;
-  const total   = story + tg + threads + reels;
+  // All time — sum across all days
+  let story = 0, tg = 0, threads = 0, reels = 0;
+  Object.values(state.days).forEach(d => {
+    story   += d.nums?.content_story   || 0;
+    tg      += d.nums?.content_tg      || 0;
+    threads += d.nums?.content_threads || 0;
+    reels   += d.nums?.content_reels   || 0;
+  });
+  const total = story + tg + threads + reels;
 
   const grid = document.getElementById('contentStatGrid');
   const meta = document.getElementById('contentTotalMeta');
   if (!grid || !meta) return;
 
-  meta.textContent = `${total} total today`;
+  meta.textContent = `${total} total`;
 
   grid.innerHTML = [
     { label: 'Story',   val: story   },
@@ -1072,9 +1082,20 @@ function renderDashboard() {
 }
 
 // ---------- RENDER: REPORT ----------
+let reportDirty = true;
+
 function renderReport() {
+  const wrap = document.getElementById('reportWrap');
+  if (!wrap) return;
+  // If tab not visible — mark dirty, render on tab open
+  if (!document.getElementById('tab-report')?.classList.contains('active')) {
+    reportDirty = true;
+    return;
+  }
+  reportDirty = false;
+
   const elapsed    = elapsedDays();
-  const d          = new Date();
+  const d          = new Date(selectedDate);
   const dateStr    = `${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
   const streakInfo = maxStreakDays();
   const cleanDays  = Object.values(state.days).filter(d => dayScore(d) >= 10).length;
@@ -1083,13 +1104,13 @@ function renderReport() {
   const pomo       = sumDays('pomo');
   const diag       = sumDays('diag');
   const content    = sumDays('content');
-  const todayDay      = state.days[fmtDate(new Date())];
+  const todayDay      = state.days[selectedDate];
   const todayScore    = todayDay ? dayScore(todayDay) : 0;
   const todayPomo     = todayDay?.nums?.pomo ?? null;
   const todayKcal     = todayDay?.nums?.kcal ?? null;
   const todayReport   = !!todayDay?.checks?.report_submitted;
   const todaySteps    = todayDay?.nums?.steps ?? null;
-  const isWeekend     = new Date().getDay() === 0 || new Date().getDay() === 6;
+  const isWeekend     = d.getDay() === 0 || d.getDay() === 6;
   const el2           = Math.max(elapsed, 1);
   const challengePct = elapsed ? Math.round(elapsed/TOTAL_DAYS*100) : 0;
 
@@ -1149,9 +1170,6 @@ function renderReport() {
 
   const bar = (pct, h=6) => `<div class="rp2-bar" style="height:${h}px"><div style="width:${Math.min(100,pct)}%"></div></div>`;
 
-  const wrap = document.getElementById('reportWrap');
-  if (!wrap) return;
-
   wrap.innerHTML = `
   <div class="rp2-page">
     <div class="rp2-top">
@@ -1186,8 +1204,8 @@ function renderReport() {
         <div class="rp2-prog-sub">${elapsed} of ${TOTAL_DAYS} days done</div>
 
         <div class="rp2-prog-title" style="margin-top:24px;">Key metrics</div>
-        <div class="rp2-goal-row"><span>Pomodoro</span><span>${pomo}/${GOALS.pomo}</span></div>
-        ${bar(pomo/GOALS.pomo*100, 5)}
+        <div class="rp2-goal-row"><span>Pomodoro today</span><span>${todayPomo !== null ? todayPomo : '—'}</span></div>
+        ${bar(todayPomo !== null ? Math.min(todayPomo / 8 * 100, 100) : 0, 5)}
         <div class="rp2-goal-row"><span>Calories today</span><span>${todayKcal !== null ? todayKcal : '—'}/2200</span></div>
         ${bar(todayKcal !== null ? Math.min(todayKcal/2200*100, 100) : 0, 5)}
         <div class="rp2-goal-row"><span>Report today</span><span style="color:${todayReport ? '#64c864' : isWeekend ? 'var(--text-faint)' : 'var(--danger)'}">${todayReport ? '✓ done' : isWeekend ? '— weekend' : '✕ missing'}</span></div>
@@ -1197,15 +1215,18 @@ function renderReport() {
     <div class="rp2-rings-row">
       ${(() => {
         // --- Ring 1: Macros (БЖУ) ---
-        const todayNums = state.days[fmtDate(new Date())]?.nums || {};
+        const todayNums = state.days[selectedDate]?.nums || {};
         const protein = todayNums.protein ?? 0;
         const fat     = todayNums.fat     ?? 0;
         const carbs   = todayNums.carbs   ?? 0;
 
         const proteinPct = Math.min(protein / 170 * 100, 100);
-        const fatPct     = fat > 0 ? Math.min(fat / 75 * 100, 100) : 0;
+        const fatPct     = fat   > 0 ? Math.min(fat   / 75  * 100, 100) : 0;
         const carbsPct   = carbs > 0 ? Math.min(carbs / 260 * 100, 100) : 0;
-        const macroScore = Math.round((proteinPct + (100 - Math.min(fatPct, 100)) + (100 - Math.min(carbsPct, 100))) / 3);
+
+        // macroScore = protein progress only (main goal)
+        // fat/carbs rings show consumption progress (fill = how much used of limit)
+        const macroScore = Math.round(proteinPct);
 
         function arc(pct, r, color, sw, offset) {
           const c = 2 * Math.PI * r;
@@ -1221,10 +1242,10 @@ function renderReport() {
             <circle cx="60" cy="60" r="38" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
             <circle cx="60" cy="60" r="28" fill="none" stroke="rgba(232,232,232,0.07)" stroke-width="7"/>
             ${arc(proteinPct, 48, protein >= 170 ? 'rgba(232,232,232,0.9)' : 'rgba(255,50,50,0.7)', 7, 0)}
-            ${arc(100 - Math.min(fatPct,100), 38, fat <= 75 ? 'rgba(180,180,180,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
-            ${arc(100 - Math.min(carbsPct,100), 28, carbs <= 260 ? 'rgba(120,120,120,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
+            ${arc(fatPct,     38, fat   <= 75  ? 'rgba(180,180,180,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
+            ${arc(carbsPct,   28, carbs <= 260 ? 'rgba(120,120,120,0.8)' : 'rgba(255,50,50,0.7)', 7, 0)}
             <text x="60" y="56" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="16" font-weight="700" fill="#e8e8e8">${macroScore}%</text>
-            <text x="60" y="70" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="7" font-weight="800" fill="#747474">MACROS</text>
+            <text x="60" y="70" text-anchor="middle" font-family="Roboto Mono,monospace" font-size="7" font-weight="800" fill="#747474">PROTEIN</text>
           </svg>`;
 
         const macroLegend = `
@@ -1235,7 +1256,7 @@ function renderReport() {
           </div>`;
 
         // --- Ring 2: Content metrics ---
-        const todayContent = state.days[fmtDate(new Date())]?.nums || {};
+        const todayContent = state.days[selectedDate]?.nums || {};
         const story   = todayContent.content_story   || 0;
         const tg      = todayContent.content_tg      || 0;
         const threads = todayContent.content_threads || 0;
@@ -1314,7 +1335,7 @@ function bindEvents() {
       if (t.dataset.tab === 'history')      renderHistoryHeatmap();
       if (t.dataset.tab === 'today')        renderToday();
       if (t.dataset.tab === 'achievements') renderAchievements();
-      if (t.dataset.tab === 'report')       renderReport();
+      if (t.dataset.tab === 'report') { reportDirty = false; renderReport(); }
     });
   });
 
@@ -1322,16 +1343,22 @@ function bindEvents() {
   document.getElementById('datePicker').addEventListener('change', e => {
     selectedDate = e.target.value || todayKey();
     renderToday();
+    renderDashboard();
+    renderReport();
   });
   document.getElementById('todayBtn').addEventListener('click', () => {
     selectedDate = todayKey();
     renderToday();
+    renderDashboard();
+    renderReport();
   });
   document.getElementById('prevBtn').addEventListener('click', () => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() - 1);
     selectedDate = fmtDate(d);
     renderToday();
+    renderDashboard();
+    renderReport();
   });
   document.getElementById('nextBtn').addEventListener('click', () => {
     const d = new Date(selectedDate);
@@ -1339,6 +1366,8 @@ function bindEvents() {
     if (d > new Date()) return;
     selectedDate = fmtDate(d);
     renderToday();
+    renderDashboard();
+    renderReport();
   });
 
   // Checkboxes
